@@ -1,0 +1,370 @@
+#!/usr/bin/env -S emacs -Q --script
+
+;; clear log
+(shell-command-to-string "echo > /tmp/riverctl.log")
+
+;; init
+(progn
+  ;; load riverctl.el
+  (load "$HOME/Projects/riverctl-elisp/riverctl.el")
+  ;; set layout generator
+  (setq my/layout-generator
+        ;; 'rivertile
+        'wideriver)
+  ;; alist for mapping physical number keys to dvorak-programmer keys
+  (setq my/dvp-keys
+        '(;; nth 0: functionally
+          ;; nth 1: dvp actual
+          (1 ampersand)
+          (2 bracketleft)
+          (3 braceleft)
+          (4 braceright)
+          (5 parenleft)
+          (6 equal)
+          (7 asterisk)
+          (8 parenright)
+          (9 plus)
+          (0 bracketright)))
+  ;; for functions i use later
+  (require 'cl-macs))
+
+;;; General
+
+(riverctl
+  '((spawn "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
+    (spawn "systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
+    (spawn "systemctl --user set-environment GPG_TTY=$(tty)")
+    (background-color 0x9370db)               ;; #9370db
+    (border-color-focused 0xf2b1d9)   ;; #f2b1d9
+    (border-color-unfocused 0x222222) ;; #222222
+    ;; (border-color-focused 0x946a90)   ;; #946a90
+    ;; (border-color-unfocused 0x040a0a) ;; #040a0a
+    ;; Keyboard 
+    ;; (keyboard-layout
+    ;;  ;; -variant ",dvp"
+    ;;  ;; -variant ",colemak_dh"
+    ;;  -variant ",dvp,colemak_dh_capsctrl"
+    ;;  ;; -variant "colemak_dh,dvp,"
+    ;;  ;; -options "grp:sclk_toggle,shift:both_capslock_cancel,caps:ctrl_modifier"
+    ;;  -options "grp:sclk_toggle,ctrl:nocaps"
+    ;;  ;; -options "grp:sclk_toggle,shift:both_capslock_cancel,ctrl:nocaps"
+    ;;  ;; -options "shift:both_capslock_cancel,ctrl:nocaps"
+    ;;  ;; -options "shift:both_capslock_cancel,ctrl:swapcaps"
+    ;;                       ;; -options "shift:both_capslock_cancel,"
+    ;;                       ;; "us,us,us"
+    ;;                       "us,us,us-fixed"
+    ;;                       )
+    ;;;;;;; LAYOUTS TO EXPLORE
+    ;; workman
+    ;; workman-p
+    ;; norman
+    ;; colemak
+    (keyboard-layout-file "$HOME/.xkb/symbols/custom")
+    ;; (keyboard-layout-index 1)
+    (set-repeat 80 200)
+    (set-cursor-warp on-focus-change)
+    (input "pointer-1267-12864-ELAN0412:00_04F3:3240_Touchpad" tap enabled)))
+
+(riverctl
+  '(map normal kbd
+        (("s-Home" keyboard-layout-index 1)
+         ("s-End" keyboard-layout-index 2)
+         ("s-Page_Up" keyboard-layout-index 0)
+         ("s-Page_Down" keyboard-layout-index -shift 1))))
+
+;;; System
+
+(riverctl
+  '(map normal kbd
+        (("s-C-q" exit)
+         ("s-F12" spawn "systemctl hibernate")
+         ("s-C-r" spawn "~/.config/river/init")
+         ;; ("s-C-l" spawn "swaylock")
+         )))
+
+;;; Basic programs
+
+(riverctl
+  '(map normal kbd
+        (("s-m" spawn "emacsclient -a '' -c")
+         ("s-b" spawn "alacritty"))))
+
+;;; Windows
+
+(riverctl
+  '(map normal kbd
+        (;; manage
+         ("s-M-d" close)
+         ("s-f" toggle-fullscreen)
+         ;; change focus
+         ("s-n" focus-view next)
+         ("s-t" focus-view previous)
+         ;; TODO: switch to last win or to master
+         ;; ("s-backslash" focus-view right)
+         ;; swap
+         ("s-M-n" swap next)
+         ("s-M-t" swap previous)
+         ;; bump into focused view
+         ("s-Return" zoom))))
+
+;;; layout generators
+
+(riverctl
+  (pcase my/layout-generator
+    ;; Rivertile:
+    ('rivertile
+     `(map normal kbd
+           (;; adjust ratio (rivertile)
+            ("s-r" send-layout-cmd rivertile "main-ratio -.05")
+            ("s-c" send-layout-cmd rivertile "main-ratio +.05")
+            ;; change count in master and stack (rivertile)
+            ("s-C-h" send-layout-cmd rivertile "main-count +1")
+            ("s-C-s" send-layout-cmd rivertile "main-count -1")
+            ;; layout orientation
+            ("s-Up" send-layout-cmd rivertile "main-location top")
+            ("s-Right" send-layout-cmd rivertile "main-location right")
+            ("s-Down" send-layout-cmd rivertile "main-location bottom")
+            ("s-Left" send-layout-cmd rivertile "main-location left"))))
+    ;; Wideriver:
+    ('wideriver
+     `(map normal kbd
+           (;; adjust ratio (wideriver)
+            ("s-r" send-layout-cmd wideriver "--ratio +0.025")
+            ("s-c" send-layout-cmd wideriver "--ratio -0.025")
+            ("s-o" send-layout-cmd wideriver "--ratio 0.60")
+            ;; layout orientation
+            ("s-Up" send-layout-cmd wideriver "--layout monocle")
+            ("s-Left" send-layout-cmd wideriver "--layout left")
+            ("s-Right" send-layout-cmd wideriver "--layout right")
+            ;; ("s-Space" send-layout-cmd wideriver "--layout-toggle")
+            ;; change count in master and stack (wideriver)
+            ("s-C-h" send-layout-cmd wideriver "--count +1")
+            ("s-C-s" send-layout-cmd wideriver "--count -1")
+            ("s-C-o" send-layout-cmd wideriver "--count 1")
+            ;; stack modes (wideriver)
+            ("s-M-Left" send-layout-cmd wideriver "--stack even")
+            ("s-M-Down" send-layout-cmd wideriver "--stack dwindle")
+            ("s-M-Right" send-layout-cmd wideriver "--stack diminish")
+            ;; focus on next/prev output
+            ("s-C-b" focus-output next)
+            ("s-C-m" focus-output previous)
+            ;; send focused window to next/prev output
+            ("s-C-S-b" send-to-output next)
+            ("s-C-S-m" send-to-output previous))))))
+
+;;; Window rules
+
+(riverctl
+  `(rule-add
+    (;; float
+     (-title ,(riverctl-prepend
+                '("Extension: (NoScript) - NoScript Settings — LibreWolf")
+                '(float)))
+     ;; fix no borders (server-side decorations)
+     ((-app-id ,(riverctl-prepend
+                  '("librewolf" "emacs" "Renoise" "chromium-browser" "libreoffice-writer")
+                  '(ssd)))))))
+
+;;; Floating controls
+
+;; tmp: arrange, , tag
+
+(riverctl
+  `((declare-mode floating)
+    (map (normal kbd "s-S-f" enter-mode floating)
+         (floating kbd (,(riverctl-prepend
+                           '("C-g" "s-g" "s-S-f")
+                           '(enter-mode normal))
+                        ;; toggle
+                        ("f" toggle-float)
+                        ("s-w" toggle-float)
+                        ;; move
+                        ("h" move left 100)
+                        ("t" move up 100)
+                        ("n" move down 100)
+                        ("s" move right 100)
+                        ;; resize views
+                        ("M-h" resize horizontal -100)
+                        ("M-t" resize vertical 100)
+                        ("M-n" resize vertical -100)
+                        ("M-s" resize horizontal 100)
+                        ;; snap to edge
+                        ("S-h" snap left)
+                        ("S-t" snap up)
+                        ("S-n" snap down)
+                        ("S-s" snap right))))))
+
+;;; Tags
+
+(riverctl
+  (when (executable-find "flow")
+    `(map normal kbd
+          ("s-TAB" focus-previous-tags)
+          ("s-h" spawn "flow cycle-tags previous 9 -o")
+          ("s-s" spawn "flow cycle-tags next 9 -o")
+          ("s-M-h" spawn "flow cycle-tags previous")
+          ("s-M-s" spawn "flow cycle-tags next")
+          ;; todo: switch to something other than flow, -o arg is broken
+          )))
+
+;;; number row
+
+;; number row - tag commands
+
+(riverctl
+  (cl-loop
+   for x from 1 to 9 collect
+   (let* ((k (car (alist-get x my/dvp-keys)))
+          (tag (ash 1 (1- x))))
+     `(map normal kbd
+           ((,(format "s-%s" k) spawn ,(if (executable-find "flow")
+                                           (format "flow toggle-tags %s" tag)
+                                         (format "set-focused-tags %s" tag)))
+            (,(format "s-S-%s" k) set-view-tags ,tag) ; send to tag
+            (,(format "s-M-%s" k) toggle-focused-tags ,tag) ; toggle current tag
+            (,(format "s-M-C-%s" k) toggle-view-tags ,tag) ; toggle tag
+            )
+           ))))
+
+;; number row - view all tags
+
+(riverctl
+  (let ((zero (car (alist-get 0 my/dvp-keys)))
+        (alltags (ash 1 32)))
+    `(map normal kbd
+          ((,(format "s-%s" zero) set-focused-tags ,alltags)
+           (,(format "s-S-%s" zero) set-view-tags ,alltags)))))
+
+;;; Special
+
+(riverctl
+  (let ((binds '(("XF86AudioRaiseVolume" spawn "amixer set Master 10%+")
+                 ("XF86AudioLowerVolume" spawn "amixer set Master 10%-")
+                 ("S-XF86AudioRaiseVolume" spawn "amixer set Master 5%+")
+                 ("S-XF86AudioLowerVolume" spawn "amixer set Master 5%-")
+                 ("XF86AudioMute" spawn "amixer set Master toggle")
+                 ;; Brightness
+                 ("XF86MonBrightnessUp" spawn "brightnessctl set 10%+")
+                 ("XF86MonBrightnessDown" spawn "brightnessctl set 10%-")
+                 ("S-XF86MonBrightnessUp" spawn "brightnessctl set 5%+")
+                 ("S-XF86MonBrightnessDown" spawn "brightnessctl set 5%-")
+                 ;; Media
+                 ("XF86AudioPlay" spawn "playerctl play-pause"))))
+    `(map (normal kbd ,binds)
+          (locked kbd ,binds))))
+
+;;; screenshots
+
+(riverctl
+  `(map normal kbd
+        ("Print" spawn ,(string-join
+                         '("grimshot --notify save area"
+                           "$HOME/Pictures/screenshots/$(date -Iseconds).png")
+                         " "))
+        ("S-Print" spawn ,(string-join
+                           '("grimshot --notify save output"
+                             "$HOME/Pictures/screenshots/$(date -Iseconds).png")
+                           " "))
+        ("s-S-Print" spawn "grimshot --notify copy area")))
+
+;;; Passthrough mode
+
+(riverctl '(declare-mode passthrough))
+
+(riverctl '(map (normal kbd "s-F11" enter-mode passthrough)
+                (passthrough kbd "s-F11" enter-mode normal)))
+
+;;; launch commands
+
+(riverctl
+  `(map normal kbd
+        ("s-g" spawn "wlr-which-key")
+        ("s-l" spawn "bemenu-run")
+        ("s-M-l" spawn ,(string-join
+                         '("fuzzel -w 60 -x 15 -y 15 -r 3 -b 232635ff"
+                           "-t A6Accdff -s A6Accdff -S 232635ff -C c792eacc"
+                           "-m c792eacc -f 'Iosevka Aile:weight=light:size=11'"
+                           "--icon-theme=Papirus-Dark")
+                         " "))))
+
+;;; Startup
+
+(riverctl
+  `(spawn (;; swaybg
+           (,(string-join
+              '("run-only-newest.sh -id 'wbg' --"
+                "wbg ~/Pictures/library/wallpapers/glt-landscape2.png")
+              " "))
+
+           ;; notifications
+           (,(string-join
+              '("run-only-newest.sh -id 'mako' --"
+                "mako --border-radius=2 --font='Deva Vu Sans 10'"
+                "--max-visible=5 --outer-margin=5 --margin=3"
+                "--background='#1c1f26' --border-color='#89AAEB'"
+                "--border-size=1 --default-timeout=7000")
+              " "))
+
+           ;; wlsunset
+           ("run-only-newest.sh -id 'wlsunset' -- wlsunset -S 10:00 -s 19:00 -t 3000 -T 6500")
+
+           ;; sandbar
+           ("run-only-newest.sh -id 'sandbar' -- $HOME/Scripts/sandbar-config.sh")
+
+           ;; swayidle
+           (,(string-join
+              '("run-only-newest.sh -id 'swayidle' --"
+                "swayidle -w"
+                "timeout  900 'brightnessctl -s s 0%'"
+                "resume   'brightnessctl -r'"
+                "timeout  1200 'waylock -fork-on-lock'"
+                ;; "before-sleep 'waylock -fork-on-lock'"
+                )
+              " "))
+
+           ;; fcitx5
+           ;; "fcitx5 -d -r"
+           )))
+
+;;; Layout generator
+
+(riverctl
+  (pcase my/layout-generator
+    ;; rivertile layout generator:
+    ('rivertile
+     `((default-layout rivertile)
+       (spawn ,(string-join
+                '("run-only-newest.sh -id 'rivertile' --"
+                  "rivertile -view-padding 6 -outer-padding 6")
+                " "))))
+    ;; wideriver layout generator:
+    ('wideriver
+     `((default-layout wideriver)
+       (spawn ,(string-join
+                '("run-only-newest.sh -id 'wideriver' --"
+                  "wideriver"
+                  ;; "--layout           left"
+                  ;; "--layout-alt       monocle"
+                  ;; "--stack            even" ; def: dwindle
+                  ;; "--count-master     1"
+                  "--ratio-master     0.60" ; def: 0.50, "s-M-x" set to 0.60
+                  ;; "--count-wide-left  0"
+                  ;; "--ratio-wide       0.35"
+                  ;; "--smart-gaps"    ; def nil
+                  ;; "--inner-gaps       10" ; def 0
+                  ;; "--outer-gaps       13" ; def 0
+                  "--inner-gaps       0" ; def 0
+                  "--outer-gaps       0" ; def 0
+                  "--border-width     2" ; def 2
+                  "--border-width-monocle          0"
+                  "--border-color-focused          '0x946a90'"
+                  "--border-color-focused-monocle  '0x946a90'"
+                  "--border-color-unfocused        '0x040a0a'"
+                  ;; "--log-threshold    info"
+                  )
+                " \\\n"))))))
+
+
+;; Local Variables:
+;; mode: emacs-lisp
+;; End:
